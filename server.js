@@ -1,69 +1,34 @@
-require('dotenv').config();
-
-const express = require('express');
-const cors = require('cors');
-const mongoose = require('mongoose'); // Add this import
-const connectDB = require('./config/database');
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const connectDB = require("./config/database"); 
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Basic health check route
-app.get('/api/health', (req, res) => {
-  res.json({
-    message: 'Server is running!',
-    timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected', // Fixed
-    environment: process.env.NODE_ENV
-  });
+// 1) Root route so hitting "/" doesn't 403
+app.get("/", (req, res) => {
+  res.send("✅ Backend API is running on Azure");
 });
 
-// Root route
-app.get('/', (req, res) => {
-  res.json({
-    message: 'My User API is running',
-    status: 'success',
-    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected' // Fixed
-  });
+// 2) Optional health check
+app.get("/healthz", (req, res) => {
+  res.status(200).json({ status: "ok" });
 });
 
-// Handle 404 routes
-app.use((req, res) => {
-  res.status(404).json({
-    message: 'Route not found',
-    path: req.originalUrl
-  });
-});
+// 3) Start server on Azure's port
+const PORT = process.env.PORT || 3000;
 
-// Error handling middleware
-app.use((error, req, res, next) => {
-  console.error('Server Error:', error);
-  res.status(error.status || 500).json({
-    message: error.message || 'Internal Server Error'
-  });
-});
-
-// Connect to MongoDB and start server
-const startServer = async () => {
-  try {
-    await connectDB();
-    
+connectDB()
+  .then(() => {
     app.listen(PORT, () => {
-      console.log('=================================');
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV}`);
-      console.log(`Health check: http://localhost:${PORT}/api/health`);
-      console.log('=================================');
+      console.log(`Server listening on ${PORT}`);
     });
-    
-  } catch (error) {
-    console.error('Failed to start server:', error);
+  })
+  .catch((err) => {
+    console.error("Failed to connect DB:", err);
     process.exit(1);
-  }
-};
+  });
 
-startServer();
+module.exports = app;
