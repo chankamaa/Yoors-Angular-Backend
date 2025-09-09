@@ -1,62 +1,52 @@
-// server.js
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-
-// If your file is ./config/database.js, change the next line to:
-// const connectDB = require("./config/database");
-const connectDB = require("./config/database.js");
+const connectDB = require("./config/database"); // keep your correct path
 
 const app = express();
-
-// Azure/behind-proxy friendly
 app.set("trust proxy", 1);
-
-// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// Health + Root
-app.get("/", (_req, res) => {
-  res.send("✅ Backend API is running on Azure");
-});
-app.get("/healthz", (_req, res) => {
-  res.status(200).json({ status: "ok" });
-});
+// quick health that never hits DB
+app.get("/healthz", (req, res) => res.status(200).json({ status: "ok" }));
 
-// (Example) mount your API routes below
-// app.use("/api/users", require("./routes/users"));
-
-// 404 handler for unknown routes
-app.use((req, res) => {
-  res.status(404).json({ error: "Not found", path: req.originalUrl });
+// root route
+app.get("/", (req, res, next) => {
+  try {
+    res.type("text/plain").send("✅ Backend API is running on Azure");
+  } catch (e) { next(e); }
 });
 
-// Global error handler (avoid silent crashes)
+// handle favicon gracefully so it doesn't 500
+app.get("/favicon.ico", (_req, res) => res.status(204).end());
+
+// 404
+app.use((req, res) => res.status(404).json({ error: "Not found" }));
+
+// error logger
 app.use((err, _req, res, _next) => {
   console.error("Unhandled error:", err);
-  res.status(500).json({ error: "Internal Server Error" });
+  res.status(500).json({ error: "Internal Server Error", message: err.message });
 });
 
-// Start server on Azure's assigned port
+// surface unhandled promise rejections
+process.on("unhandledRejection", (r) => console.error("unhandledRejection:", r));
+
 const PORT = process.env.PORT || 3000;
 
 (async () => {
   try {
-    await connectDB();
-    app.listen(PORT, () => {
-      console.log(`🚀 Server listening on ${PORT} (NODE_ENV=${process.env.NODE_ENV || "production"})`);
-    });
+    if (process.env.SKIP_DB !== "true") {
+      if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI is missing");
+      await connectDB();
+      console.log("✅ MongoDB connected");
+    } else {
+      console.log("⏭  SKIP_DB=true -> not connecting to DB");
+    }
+    app.listen(PORT, () => console.log(`🚀 Listening on ${PORT}`));
   } catch (err) {
-    console.error("❌ Failed to init server:", err);
+    console.error("❌ Startup failed:", err);
     process.exit(1);
   }
 })();
-
-// Graceful shutdown (App Service restarts, etc.)
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received. Shutting down gracefully.");
-  process.exit(0);
-});
-
-module.exports = app;
