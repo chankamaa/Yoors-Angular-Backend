@@ -1,0 +1,4 @@
+{
+    "appService.defaultWebAppToDeploy": "/subscriptions/181baacc-0eaa-4eaa-8a53-17fb7a41879f/resourceGroups/appsvc_linux_eastus/providers/Microsoft.Web/sites/yoors-backend-api",
+    "appService.deploySubpath": "."
+}
